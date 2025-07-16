@@ -1,13 +1,20 @@
 package com.vpbankhackathon.store_and_forward_service.configs;
 
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.EnableKafka;
+import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.*;
+import org.springframework.kafka.listener.ContainerProperties;
+import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
+import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.kafka.support.mapping.DefaultJackson2JavaTypeMapper;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,30 +41,45 @@ public class KafkaConfig {
         return new KafkaTemplate<>(genericProducerFactory());
     }
 
-    // @Bean
-    // public ConsumerFactory<String, String> consumerFactory() {
-    // Map<String, Object> props = new HashMap<>();
-    // props.put(
-    // ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
-    // bootstrapAddress);
-    // props.put(
-    // ConsumerConfig.GROUP_ID_CONFIG,
-    // groupId);
-    // props.put(
-    // ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
-    // StringDeserializer.class);
-    // props.put(
-    // ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
-    // StringDeserializer.class);
-    // return new DefaultKafkaConsumerFactory<>(props);
-    // }
-    //
-    // @Bean
-    // public ConcurrentKafkaListenerContainerFactory<String, String>
-    // kafkaListenerContainerFactory() {
-    // ConcurrentKafkaListenerContainerFactory<String, String> factory =
-    // new ConcurrentKafkaListenerContainerFactory<>();
-    // factory.setConsumerFactory(consumerFactory());
-    // return factory;
-    // }
+    @Bean
+    public ConsumerFactory<String, Object> consumerFactory() {
+        JsonDeserializer<Object> jsonDeserializer = new JsonDeserializer<>();
+        jsonDeserializer.addTrustedPackages("com.vpbankhackathon.store_and_forward_service.models.dtos");
+
+        // 👇 Custom TypeMapper to map incoming type to your local class
+        DefaultJackson2JavaTypeMapper typeMapper = new DefaultJackson2JavaTypeMapper();
+
+        Map<String, Class<?>> idClassMapping = new HashMap<>();
+        idClassMapping.put(
+            "com.vpbankhackathon.t24_service.models.entities.Transaction",
+            com.vpbankhackathon.store_and_forward_service.models.dtos.Transaction.class
+        );
+
+        idClassMapping.put(
+            "com.vpbankhackathon.t24_service.models.entities.AccountOpening",
+            com.vpbankhackathon.store_and_forward_service.models.dtos.AccountOpening.class
+        );
+
+        typeMapper.setIdClassMapping(idClassMapping);
+        typeMapper.setTypePrecedence(DefaultJackson2JavaTypeMapper.TypePrecedence.TYPE_ID);
+        jsonDeserializer.setTypeMapper(typeMapper);
+
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapAddress);
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
+        props.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, JsonDeserializer.class);
+//        props.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
+//        props.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, true);
+        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), jsonDeserializer);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(consumerFactory());
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+        return factory;
+    }
 }
