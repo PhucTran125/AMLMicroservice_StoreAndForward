@@ -14,5 +14,5 @@ public class CustomerScreeningRequest {
     private LocalDate dob;
     private String address;
     private String nationality;
-    private String transactionId;
+    private String requestId;
 }
