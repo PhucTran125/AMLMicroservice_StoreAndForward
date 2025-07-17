@@ -18,6 +18,10 @@ public class CustomerScreeningResultConsumer {
     @KafkaListener(topics = "customer-screening-result")
     public void consumeMessage(CustomerScreeningResult result) {
         try {
+            if (result.getRequestId() == null) {
+                System.err.println("Received null result from Kafka topic 'customer-screening-result'");
+                return;
+            }
             service.forwardCustomerScreeningResult(result);
         } catch (Exception e) {
             System.err.println("Error in consumeMessage: " + e.getMessage());

@@ -1,8 +1,7 @@
 package com.vpbankhackathon.store_and_forward_service.models.entities;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
+import com.vpbankhackathon.store_and_forward_service.models.dtos.T24AMLResult;
+import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -11,6 +10,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
+@Table(name = "aml_requests")
 @Data
 public class AMLRequest {
     public enum RequestStatus {
@@ -22,11 +22,15 @@ public class AMLRequest {
     }
 
     @Id
-    private UUID id = UUID.randomUUID();
+    private String id;
     private Long timestamp = Instant.now().toEpochMilli();
+    @Enumerated(EnumType.STRING)
     private RequestStatus status;
 
     @Column(columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)
     private String data;
+    @Column(name = "request_id")
+    private String requestId;
+    private T24AMLResult.TaskType taskType;
 }

@@ -46,7 +46,7 @@ public class CustomerScreeningRequestProducer {
             System.out.println("Customer ID: " + request.getCustomerId());
 
             CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(topicName,
-                    request.getCustomerId(), request);
+                String.valueOf(request.getCustomerId()), request);
             future.whenComplete((result, ex) -> {
                 if (ex == null) {
                     System.out.println("Sent customer screening request=[" + request.getCustomerId() +

@@ -1,5 +1,6 @@
 package com.vpbankhackathon.store_and_forward_service.configs;
 
+import com.vpbankhackathon.store_and_forward_service.utils.error_handlers.CustomErrorHandler;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -56,8 +57,18 @@ public class KafkaConfig {
         );
 
         idClassMapping.put(
-            "com.vpbankhackathon.t24_service.models.entities.AccountOpening",
-            com.vpbankhackathon.store_and_forward_service.models.dtos.AccountOpening.class
+            "com.vpbankhackathon.t24_service.models.dtos.VerifyCustomerRequestDTO",
+            com.vpbankhackathon.store_and_forward_service.models.dtos.VerifyCustomerRequestDTO.class
+        );
+
+        idClassMapping.put(
+            "com.vpbankhackathon.customer_screening_service.models.dtos.CustomerScreeningResult",
+            com.vpbankhackathon.store_and_forward_service.models.dtos.CustomerScreeningResult.class
+        );
+
+        idClassMapping.put(
+            "com.vpbankhackathon.transaction_monitoring.models.dtos.TransactionMonitoringResult",
+            com.vpbankhackathon.store_and_forward_service.models.dtos.TransactionMonitoringResult.class
         );
 
         typeMapper.setIdClassMapping(idClassMapping);
@@ -76,10 +87,13 @@ public class KafkaConfig {
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
+    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory(
+        CustomErrorHandler errorHandler
+    ) {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+        factory.setCommonErrorHandler(errorHandler);
         return factory;
     }
 }

@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 @Data
 public class TransactionMonitoringRequest {
   private Long transactionId;
-  private String customerId;
+  private Long customerId;
   private String customerName;
   private String customerIdentificationNumber;
   private Long amount;

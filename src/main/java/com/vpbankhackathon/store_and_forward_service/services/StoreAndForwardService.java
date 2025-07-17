@@ -18,11 +18,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @EnableScheduling
@@ -45,72 +41,9 @@ public class StoreAndForwardService {
     @Autowired
     ObjectMapper objectMapper;
 
-    // public void requestCustomerScreening(String customerId) {
-    // // Create a CustomerScreeningRequest.java object
-    // CustomerScreeningRequest request = new CustomerScreeningRequest();
-    // request.setCustomerId(customerId);
-    // request.setCustomerName("John Doe"); // Sample data - replace with real data
-    // request.setIdentificationNumber("ID123456789");
-    // request.setDob(LocalDate.of(1990, 1, 15));
-    // request.setAddress("123 Main Street, City, Country");
-    // request.setNationality("Vietnamese");
-    // request.setTransactionId(UUID.randomUUID().toString());
-    //
-    // producer.sendMessage(request);
-    // }
-
-    // public void processTransaction(TransactionRequest request) {
-    // try {
-    // if (!validateAuth(request.getSignature())) {
-    // throw new SecurityException("Invalid signature");
-    // }
-    //
-    // Transaction transaction = mapToEntity(request);
-    // transaction.setState("pending");
-    // transactionRepository.save(transaction);
-    //
-    // String eventType = getEventType(request);
-    // if ("ACCOUNT_OPENING".equals(eventType) || isCsActive() ||
-    // request.getAmount() >= 400000000) {
-    // sendToKafka(transaction);
-    // transaction.setState("sent");
-    // transactionRepository.save(transaction);
-    // }
-    // } catch (Exception e) {
-    // throw new RuntimeException("Error processing transaction: " + e.getMessage(),
-    // e);
-    // }
-    // }
-
-    // private Transaction mapToEntity(TransactionRequest request) {
-    // Transaction tx = new Transaction();
-    // tx.setId(UUID.fromString(request.getTransactionId()));
-    // tx.setTimestamp(LocalDateTime.parse(request.getTimestamp()));
-    // try {
-    // tx.setData(new ObjectMapper().writeValueAsString(request.getData()));
-    // } catch (Exception e) {
-    // tx.setData("{}");
-    // }
-    // return tx;
-    // }
-
-    // public void requestCustomerScreening(CustomerScreeningRequest request) {
-    // // Generate transaction ID if not provided
-    // if (request.getTransactionId() == null ||
-    // request.getTransactionId().isEmpty()) {
-    // request.setTransactionId(UUID.randomUUID().toString());
-    // }
-    // producer.sendMessage(request);
-    // }
-
     public void requestCustomerScreening(String customerId) {
         // Create a CustomerScreeningRequest object
         CustomerScreeningRequest request = new CustomerScreeningRequest();
-        request.setCustomerId(customerId);
-        request.setCustomerName("John Doe"); // Sample data - replace with real data
-        request.setIdentificationNumber("ID123456789");
-        request.setDob(LocalDate.of(1990, 1, 15));
-        request.setAddress("123 Main Street, City, Country");
         request.setNationality("Vietnamese");
         request.getRequestId();
 
@@ -125,13 +58,22 @@ public class StoreAndForwardService {
         customerProducer.sendMessage(request);
     }
 
-    public AMLRequest createAMLRequest(Object requestData, String requestType) {
+    public AMLRequest createAMLRequest(
+        Object requestData,
+        String requestId,
+        String requestType,
+        T24AMLResult.TaskType taskType
+    ) {
         try {
             AMLRequest amlRequest = new AMLRequest();
             amlRequest.setStatus(AMLRequest.RequestStatus.PENDING);
+            amlRequest.setRequestId(requestId);
+            amlRequest.setId(requestId);
+            amlRequest.setTaskType(taskType);
 
             // Create a wrapper object that includes the request type and data
             Map<String, Object> dataWrapper = new HashMap<>();
+            dataWrapper.put("taskType", taskType);
             dataWrapper.put("requestType", requestType);
             dataWrapper.put("requestData", requestData);
             dataWrapper.put("createdAt", LocalDateTime.now());
@@ -155,23 +97,50 @@ public class StoreAndForwardService {
     public AMLRequest createAMLRequestFromAccountOpening(AccountOpening accountOpening) {
         // Account opening typically requires customer screening
         CustomerScreeningRequest screeningRequest = convertToCustomerScreeningRequest(accountOpening);
-        return createAMLRequest(screeningRequest, "CUSTOMER_SCREENING");
+        return createAMLRequest(
+            screeningRequest,
+            screeningRequest.getRequestId(),
+            "CUSTOMER_SCREENING",
+            T24AMLResult.TaskType.ACCOUNT_OPENING
+        );
     }
 
     public AMLRequest createAMLRequestFromTransaction(Transaction transaction) {
         // High-value transactions or flagged transactions go to transaction monitoring
         TransactionMonitoringRequest monitoringRequest = convertToTransactionMonitoringRequest(transaction);
-        return createAMLRequest(monitoringRequest, "TRANSACTION_MONITORING");
+        return createAMLRequest(
+            monitoringRequest,
+            monitoringRequest.getRequestId(),
+            "TRANSACTION_MONITORING",
+            T24AMLResult.TaskType.ACCOUNT_OPENING
+        );
+    }
+
+    public void createAMLRequestFromVerifyCustomerReq(VerifyCustomerRequestDTO requestDTO) {
+        CustomerScreeningRequest screeningRequest = convertToCustomerScreeningRequest(requestDTO);
+        createAMLRequest(
+            screeningRequest,
+            screeningRequest.getRequestId(),
+            "CUSTOMER_SCREENING",
+            requestDTO.getTaskType()
+        );
     }
 
     private CustomerScreeningRequest convertToCustomerScreeningRequest(AccountOpening accountOpening) {
         CustomerScreeningRequest request = new CustomerScreeningRequest();
-        request.setCustomerId(
-                accountOpening.getId() != null ? accountOpening.getId().toString() : UUID.randomUUID().toString());
-        request.setCustomerName(accountOpening.getCustomerName());
-        request.setIdentificationNumber(accountOpening.getCustomerIdentificationNumber());
-        request.setAddress(accountOpening.getResidentialAddress());
         request.setNationality(accountOpening.getNationality());
+        request.setRequestId(UUID.randomUUID().toString());
+        return request;
+    }
+
+    private CustomerScreeningRequest convertToCustomerScreeningRequest(VerifyCustomerRequestDTO requestDTO) {
+        CustomerScreeningRequest request = new CustomerScreeningRequest();
+        request.setCustomerId(requestDTO.getCustomerId());
+        request.setCustomerName(requestDTO.getCustomerName());
+        request.setCustomerIdentificationNumber(requestDTO.getCustomerIdentificationNumber());
+        request.setDob(requestDTO.getDob());
+        request.setNationality(requestDTO.getNationality());
+        request.setResidentialAddress(requestDTO.getResidentialAddress());
         request.setRequestId(UUID.randomUUID().toString());
         return request;
     }
@@ -179,14 +148,17 @@ public class StoreAndForwardService {
     private TransactionMonitoringRequest convertToTransactionMonitoringRequest(Transaction transaction) {
         TransactionMonitoringRequest request = new TransactionMonitoringRequest();
         request.setTransactionId(transaction.getId());
-        request.setCustomerId(transaction.getCustomerId());
-        request.setCustomerName(transaction.getCustomerName());
-        request.setCustomerIdentificationNumber(transaction.getCustomerIdentificationNumber());
+        request.setTimestamp(Instant.now().toEpochMilli());
         request.setAmount(transaction.getAmount());
         request.setCurrency(transaction.getCurrency());
         request.setSourceAccountNumber(transaction.getSourceAccountNumber());
         request.setDestinationAccountNumber(transaction.getDestinationAccountNumber());
-        request.setTimestamp(Instant.now().toEpochMilli());
+        request.setCustomerId(transaction.getCustomerId());
+        request.setCustomerName(transaction.getCustomerName());
+        request.setCustomerIdentificationNumber(transaction.getCustomerIdentificationNumber());
+        request.setDate(transaction.getDate());
+        request.setCountry(transaction.getCountry());
+        request.setRequestId(UUID.randomUUID().toString());
         return request;
     }
 
@@ -200,7 +172,7 @@ public class StoreAndForwardService {
         }
     }
 
-    @Scheduled(fixedRate = 300000) // Every 5 minutes
+    @Scheduled(fixedRate = 10000) // Every 10 seconds
     public void sendPendingRequests() {
         if (isCsActive()) {
             List<AMLRequest> pending = amlRequestRepository.findByStatusOrderByTimestampAsc(
@@ -260,18 +232,23 @@ public class StoreAndForwardService {
 
     public void forwardTransactionMonitoringResult(TransactionMonitoringResult result) {
         T24AMLResult amlResult = new T24AMLResult();
-        amlResult.setType("TRANSACTION_MONITORING_RESULT");
+        amlResult.setResultType(T24AMLResult.ResultType.TRANSACTION_MONITORING_RESULT);
         amlResult.setId(result.getTransactionId());
-        amlResult.setStatus(result.getStatus());
+        amlResult.setStatus(T24AMLResult.Status.valueOf(result.getStatus()));
+        amlResult.setTaskType(T24AMLResult.TaskType.TRANSACTION_TRANSFER);
         amlResult.setReason(result.getReason());
         amlResultProducer.sendMessage(amlResult);
     }
 
     public void forwardCustomerScreeningResult(CustomerScreeningResult result) {
+        Optional<AMLRequest> amlRequest = amlRequestRepository.findById(result.getRequestId());
+
+        if (amlRequest.isEmpty()) return;
         T24AMLResult amlResult = new T24AMLResult();
-        amlResult.setType("CUSTOMER_SCREENING_RESULT");
+        amlResult.setResultType(T24AMLResult.ResultType.CUSTOMER_SCREENING_RESULT);
         amlResult.setId(result.getCustomerId());
-        amlResult.setStatus(result.getStatus());
+        amlResult.setStatus(T24AMLResult.Status.valueOf(String.valueOf(result.getStatus())));
+        amlResult.setTaskType(amlRequest.get().getTaskType());
         amlResult.setReason(result.getReason());
         amlResultProducer.sendMessage(amlResult);
     }

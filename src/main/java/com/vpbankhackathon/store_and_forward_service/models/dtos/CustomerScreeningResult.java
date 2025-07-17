@@ -4,7 +4,24 @@ import lombok.Data;
 
 @Data
 public class CustomerScreeningResult {
+    public enum Status {
+        CLEAR("CLEAR"),
+        SUSPENDED("SUSPENDED"),
+        SUSPICIOUS("SUSPICIOUS");
+
+        private final String value;
+
+        Status(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
+    }
+
     private Long customerId;
-    private String status; // CLEAR or SUSPENDED or SUSPICIOUS
+    private Status status;
     private String reason;
+    private String requestId;
 }

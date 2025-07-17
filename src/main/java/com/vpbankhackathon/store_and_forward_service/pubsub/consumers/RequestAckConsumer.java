@@ -16,7 +16,7 @@ public class RequestAckConsumer {
 
     @KafkaListener(topics = "cs-acks", groupId = "sf-acks-group")
     public void handleAck(String requestId) {
-        AMLRequest tx = amlRequestRepository.findById(UUID.fromString(requestId)).orElse(null);
+        AMLRequest tx = amlRequestRepository.findById(requestId).orElse(null);
         if (tx != null) {
             tx.setStatus(AMLRequest.RequestStatus.ACKED);
             amlRequestRepository.save(tx);

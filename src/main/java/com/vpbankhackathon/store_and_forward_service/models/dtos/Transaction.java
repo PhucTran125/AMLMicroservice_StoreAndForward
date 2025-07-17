@@ -13,7 +13,7 @@ public class Transaction {
     private String currency;
     private Long sourceAccountNumber;
     private Long destinationAccountNumber;
-    private String customerId;
+    private Long customerId;
     private String customerName;
     private String customerIdentificationNumber;
     private LocalDateTime date;
